@@ -6,6 +6,107 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).resolve().parent.parent
 filename = ROOT_DIR / "Mini Project 2 - Instructor Database.xlsx"
 
+def read_sheet(sheet_name: str) -> pd.DataFrame:
+    """Read one worksheet and stop the page cleanly if it cannot be read."""
+    try:
+        return pd.read_excel(filename, sheet_name=sheet_name)
+    except FileNotFoundError:
+        st.error(f"Database file not found: {filename}")
+    except ValueError:
+        st.error(f'The worksheet "{sheet_name}" could not be found in the database.')
+    except PermissionError:
+        st.error("The Excel file is open or cannot be accessed. Close it and try again.")
+    except Exception as error:
+        st.error(f'Unable to read the "{sheet_name}" worksheet: {error}')
+
+    st.stop()
+
+
+def validate_expression(expression: str) -> tuple[bool, str]:
+    """Check that the input follows the expression format supported by the project."""
+    expression = expression.strip()
+
+    if expression == "":
+        return False, "Enter a mathematical expression."
+
+    invalid_chars = [
+        character
+        for character in expression
+        if character not in EvaluateExpression.valid_char
+    ]
+    if invalid_chars:
+        return False, "Only numbers, decimal points, brackets, +, -, *, and / are allowed."
+
+    # Split the input into number/operator/bracket tokens without using eval().
+    spaced_expression = expression
+    for operator in EvaluateExpression.operators:
+        spaced_expression = spaced_expression.replace(operator, f" {operator} ")
+    tokens = spaced_expression.split()
+
+    if not tokens:
+        return False, "Enter a mathematical expression."
+
+    expecting_operand = True
+    open_brackets = 0
+
+    for token in tokens:
+        if token == "(":
+            if not expecting_operand:
+                return False, "Add an operator before an opening bracket."
+            open_brackets += 1
+
+        elif token == ")":
+            if expecting_operand:
+                return False, "A closing bracket must come after a number or expression."
+            if open_brackets == 0:
+                return False, "There is an unmatched closing bracket."
+            open_brackets -= 1
+            expecting_operand = False
+
+        elif token in "+-*/":
+            if expecting_operand:
+                return False, "Two operators cannot appear together, and the expression cannot start with an operator."
+            expecting_operand = True
+
+        else:
+            if not expecting_operand:
+                return False, "Add an operator between numbers or before an opening bracket."
+            try:
+                float(token)
+            except ValueError:
+                return False, f'"{token}" is not a valid number.'
+            expecting_operand = False
+
+    if open_brackets != 0:
+        return False, "The brackets are not balanced."
+
+    if expecting_operand:
+        return False, "The expression cannot end with an operator."
+
+    return True, ""
+
+
+def calculate_answer(expression: str) -> tuple[float | None, str]:
+    """Validate and evaluate an expression, returning an error message when needed."""
+    is_valid, validation_error = validate_expression(expression)
+    if not is_valid:
+        return None, validation_error
+
+    try:
+        evaluator = EvaluateExpression(expression)
+        answer = evaluator.evaluate()
+
+        if answer is None:
+            return None, "The expression could not be evaluated."
+
+        return float(answer), ""
+    except ZeroDivisionError:
+        return None, "Division by zero is not allowed."
+    except (TypeError, ValueError, IndexError, AttributeError):
+        return None, "The expression is incomplete or incorrectly formatted."
+    except Exception as error:
+        return None, f"The expression could not be evaluated: {error}"
+
 # Read user table
 users = pd.read_excel(filename, sheet_name="Users")
 
