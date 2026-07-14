@@ -1,7 +1,10 @@
 import streamlit as st
 import pandas as pd
+from pathlib import Path
 
-filename = "Mini Project 2 - Instructor Database.xlsx"
+ROOT_DIR = Path(__file__).resolve().parent.parent
+filename = ROOT_DIR / "Mini Project 2 - Instructor Database.xlsx"
+
 users = pd.read_excel(filename, sheet_name="Users")
 users
 
