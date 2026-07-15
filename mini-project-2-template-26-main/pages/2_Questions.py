@@ -24,10 +24,16 @@ def read_sheet(sheet_name: str) -> pd.DataFrame:
 
 def validate_expression(expression: str) -> tuple[bool, str]:
     """Check that the input follows the expression format supported by the project."""
-    expression = expression.strip()
+    if not expression.strip():
+        return False, "Math expression cannot be blank."
 
-    if expression == "":
-        return False, "Enter a mathematical expression."
+    if expression != expression.strip():
+        return False, "Math expression cannot start or end with spaces."
+
+    if "  " in expression or any(
+        character.isspace() and character != " " for character in expression
+    ):
+        return False, "Use no more than one regular space between values."
 
     invalid_chars = [
         character
@@ -107,6 +113,20 @@ def calculate_answer(expression: str) -> tuple[float | None, str]:
     except Exception as error:
         return None, f"The expression could not be evaluated: {error}"
 
+
+def normalize_expression(expression: str) -> str:
+    # Spacing removed so that same formatting is the same as duplicate
+    return "".join(expression.split())
+
+
+def question_exists(expression: str, existing_questions: pd.DataFrame) -> bool:
+    # Check if same exp already stored, returns True if any duplicates in the dataframe
+    normalized_expression = normalize_expression(expression)
+    return any(
+        normalize_expression(str(existing_expression)) == normalized_expression
+        for existing_expression in existing_questions["expression"]
+    )
+
 # Read user table
 users = pd.read_excel(filename, sheet_name="Users")
 
@@ -119,34 +139,59 @@ question_data = pd.read_excel(filename, sheet_name="Questions")
 
 st.header("Questions List")
 st.write(question_data)
-
+# Checks expression if already stored in Questions, returns True if it exists
 st.header("Create New Question")
-with st.form("new_question"):
-    expression = st.text_input("Write a Math expression:")
-    expression
+expression = st.text_input("Write a Math expression:")
+st.caption(
+    "Use digits, decimal points, brackets, and the operators +, -, *, or /."
+)
 
-    # TODO: Task 2
-    # create an object instance of EvaluateExpression class
-    # pass on the math expression to the object
-    #
-    # evaluator = None
-    ### your code ###
-    evaluator = EvaluateExpression(expression)
+answer = None
+expression_error = ""
+duplicate_question = False
 
-    # TODO: Task 3
-    # call the evaluate() method of the EvaluateExpression object
-    # and store it
-    #
-    # answer = None
-    ### your code ###
-    answer = evaluator.evaluate()
+if expression:
+    answer, expression_error = calculate_answer(expression)
+    if expression_error:
+        st.warning(expression_error)
+    else:
+        st.success(f"Answer preview: {answer:g}")
+        duplicate_question = question_exists(expression, question_data)
+        if duplicate_question:
+            st.warning("This question already exists and cannot be added again.")
 
-    st.write("Answer:", answer)
+selected_users = st.multiselect(
+    "Select Users to answer this challenge.",
+    users["username"],
+)
+# Create qn buttnon disabled if qn already exists
+submit = st.button("Create Question", disabled=duplicate_question)
 
-    selected_users = st.multiselect("Select Users to answer this challenge.", users["username"])
-    submit = st.form_submit_button("Create Question")
+submission_is_valid = False
 
-if submit and expression and expression != "" and selected_users != []:
+if submit:
+    if answer is None and not expression_error:
+        answer, expression_error = calculate_answer(expression)
+
+    validation_errors = []
+
+    if expression_error:
+        validation_errors.append(expression_error)
+    elif question_exists(expression, question_data):
+        validation_errors.append(
+            "This question already exists and cannot be added again."
+        )
+    if not selected_users:
+        validation_errors.append("Select at least one user for the challenge.")
+
+    if validation_errors:
+        for validation_error in validation_errors:
+            st.error(validation_error)
+    else:
+        submission_is_valid = True 
+# Returns submission is valid to write into Excel
+
+if submission_is_valid:
     # TODO: Task 4
     # read Challenges and Challenge-Users tables 
     # from the Excel file to update
