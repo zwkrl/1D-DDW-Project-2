@@ -139,6 +139,11 @@ question_data = pd.read_excel(filename, sheet_name="Questions")
 
 st.header("Questions List")
 st.write(question_data)
+
+success_message = st.session_state.pop("question_success_message", None)
+if success_message:
+    st.success(success_message)
+
 # Checks expression if already stored in Questions, returns True if it exists
 st.header("Create New Question")
 expression = st.text_input("Write a Math expression:")
@@ -148,7 +153,6 @@ st.caption(
 
 answer = None
 expression_error = ""
-duplicate_question = False
 
 if expression:
     answer, expression_error = calculate_answer(expression)
@@ -156,16 +160,50 @@ if expression:
         st.warning(expression_error)
     else:
         st.success(f"Answer preview: {answer:g}")
-        duplicate_question = question_exists(expression, question_data)
-        if duplicate_question:
-            st.warning("This question already exists and cannot be added again.")
 
 selected_users = st.multiselect(
     "Select Users to answer this challenge.",
     users["username"],
 )
-# Create qn buttnon disabled if qn already exists
-submit = st.button("Create Question", disabled=duplicate_question)
+submit = st.button("Create Question")
+
+st.html(
+    """
+    <script>
+        (() => {
+            if (window.questionEnterSubmitHandler) {
+                document.removeEventListener(
+                    "keydown",
+                    window.questionEnterSubmitHandler,
+                    true,
+                );
+            }
+
+            window.questionEnterSubmitHandler = (event) => {
+                const isExpressionInput = event.target.closest(
+                    '[data-testid="stTextInput"]',
+                );
+                if (event.key === "Enter" && isExpressionInput) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setTimeout(() => {
+                        const createButton = [...document.querySelectorAll("button")]
+                            .find((button) => button.innerText.includes("Create Question"));
+                        if (createButton) createButton.click();
+                    }, 0);
+                }
+            };
+
+            document.addEventListener(
+                "keydown",
+                window.questionEnterSubmitHandler,
+                true,
+            );
+        })();
+    </script>
+    """,
+    unsafe_allow_javascript=True,
+)
 
 submission_is_valid = False
 
@@ -239,6 +277,9 @@ if submission_is_valid:
         assoc_data.to_excel(f, sheet_name="Challenge-Users", index=False)
 
     # st.cache_data.clear()
+    st.session_state["question_success_message"] = (
+        "Question added successfully and sent to the selected users."
+    )
     st.rerun()
 
             
