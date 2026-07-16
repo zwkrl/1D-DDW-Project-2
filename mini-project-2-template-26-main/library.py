@@ -61,6 +61,56 @@ class EvaluateExpression:
             spaced_expr = spaced_expr.replace(op, f" {op} ")
         return spaced_expr
 
+    def tokenize(self):
+        """Create tokens that support negative numbers and grouped values."""
+        raw_tokens = self.insert_space().split()
+        tokens = []
+        expecting_operand = True
+        token_index = 0
+        open_bracket_depth = 0
+        synthetic_closing_depths = []
+
+        while token_index < len(raw_tokens):
+            token = raw_tokens[token_index]
+            next_token = (
+                raw_tokens[token_index + 1]
+                if token_index + 1 < len(raw_tokens)
+                else None
+            )
+            next_token_is_number = (
+                next_token is not None and next_token not in self.operators
+            )
+
+            if token == "-" and expecting_operand and next_token_is_number:
+                tokens.append(f"-{next_token}")
+                expecting_operand = False
+                token_index += 2
+                continue
+
+            if token == "-" and expecting_operand and next_token == "(":
+                tokens.extend(["(", "0", "-"])
+                synthetic_closing_depths.append(open_bracket_depth + 1)
+                token_index += 1
+                continue
+
+            tokens.append(token)
+            if token == "(":
+                open_bracket_depth += 1
+                expecting_operand = True
+            elif token == ")":
+                if open_bracket_depth in synthetic_closing_depths:
+                    tokens.append(")")
+                    synthetic_closing_depths.remove(open_bracket_depth)
+                open_bracket_depth = max(0, open_bracket_depth - 1)
+                expecting_operand = False
+            elif token in "+-*/":
+                expecting_operand = True
+            elif token not in self.operators:
+                expecting_operand = False
+            token_index += 1
+
+        return tokens
+
     def process_operator(self, operand_stack, operator_stack):
         operator = operator_stack.pop()
         op_2 = operand_stack.pop()
@@ -80,8 +130,7 @@ class EvaluateExpression:
             return None
         operand_stack = Stack()
         operator_stack = Stack()
-        expression = self.insert_space()
-        tokens = expression.split()
+        tokens = self.tokenize()
         while len(tokens) > 0:
             token = tokens.pop(0)
             if token not in self.operators:

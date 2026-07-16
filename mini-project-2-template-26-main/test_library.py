@@ -49,3 +49,18 @@ def test_evaluate():
     assert abs(expr2.evaluate() - 50.4) < 0.001
     expr3 = EvaluateExpression("(1.2+2 *4-  3)* (7/5 * 6)")
     assert abs(expr3.evaluate() - 52.08) < 0.001
+
+    negative_expr = EvaluateExpression("-5 + 2")
+    assert negative_expr.evaluate() == -3
+    negative_expr.expression = "3 * -2"
+    assert negative_expr.evaluate() == -6
+    negative_expr.expression = "3 - -2"
+    assert negative_expr.evaluate() == 5
+    negative_expr.expression = "(-4) + 5"
+    assert negative_expr.evaluate() == 1
+    negative_expr.expression = "-(0.2) - 2"
+    assert negative_expr.evaluate() == -2.2
+    negative_expr.expression = "3 * -(2 + 1)"
+    assert negative_expr.evaluate() == -9
+    negative_expr.expression = "2 / -(2)"
+    assert negative_expr.evaluate() == -1
