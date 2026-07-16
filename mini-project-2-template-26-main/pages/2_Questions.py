@@ -44,10 +44,7 @@ def validate_expression(expression: str) -> tuple[bool, str]:
         return False, "Only numbers, decimal points, brackets, +, -, *, and / are allowed."
 
     # Split the input into number/operator/bracket tokens without using eval().
-    spaced_expression = expression
-    for operator in EvaluateExpression.operators:
-        spaced_expression = spaced_expression.replace(operator, f" {operator} ")
-    tokens = spaced_expression.split()
+    tokens = EvaluateExpression(expression).tokenize()
 
     if not tokens:
         return False, "Enter a mathematical expression."
@@ -148,7 +145,7 @@ if success_message:
 st.header("Create New Question")
 expression = st.text_input("Write a Math expression:")
 st.caption(
-    "Use digits, decimal points, brackets, and the operators +, -, *, or /."
+    "Use positive or negative numbers, decimal points, brackets, and the operators +, -, *, or /."
 )
 
 answer = None
