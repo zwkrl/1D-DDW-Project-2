@@ -34,6 +34,7 @@ def apply_dashboard_theme():
         """
         <style>
         :root {
+            --app-font: "Alphard", "Segoe UI", sans-serif;
             --panel: rgba(10, 18, 31, 0.88);
             --panel-soft: rgba(16, 25, 42, 0.78);
             --border: rgba(148, 163, 184, 0.16);
@@ -42,6 +43,18 @@ def apply_dashboard_theme():
             --blue: #3b82f6;
             --green: #4ade80;
             --text-soft: #94a3b8;
+        }
+
+        html,
+        body,
+        button,
+        input,
+        textarea,
+        select,
+        table,
+        [data-testid="stAppViewContainer"] *:not([data-testid="stIconMaterial"]),
+        div[data-baseweb="popover"] * {
+            font-family: var(--app-font) !important;
         }
 
         [data-testid="stAppViewContainer"] {
@@ -158,6 +171,66 @@ def apply_dashboard_theme():
 
         div[data-testid="stMetricLabel"] {
             color: #cbd5e1 !important;
+        }
+
+        .history-heading {
+            color: #c4b5fd;
+            font-size: 1rem;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+            margin-bottom: 0.8rem;
+        }
+
+        .history-table-wrap {
+            border: 1px solid rgba(139, 92, 246, 0.28);
+            border-radius: 0.8rem;
+            max-height: 18rem;
+            overflow: auto;
+        }
+
+        .history-table {
+            background: #08101d !important;
+            border-collapse: collapse !important;
+            color: #e2e8f0 !important;
+            margin: 0 !important;
+            width: 100% !important;
+        }
+
+        .history-table th {
+            background: #24164a !important;
+            color: #ddd6fe !important;
+            font-size: 0.78rem;
+            letter-spacing: 0.06em;
+            position: sticky;
+            text-align: left;
+            text-transform: uppercase;
+            top: 0;
+        }
+
+        .history-table th,
+        .history-table td {
+            border: 0 !important;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.12) !important;
+            padding: 0.75rem 0.9rem !important;
+        }
+
+        .history-table tbody tr:nth-child(odd) td {
+            background: #0f172a !important;
+            color: #e2e8f0 !important;
+        }
+
+        .history-table tbody tr:nth-child(even) td {
+            background: #08101d !important;
+            color: #e2e8f0 !important;
+        }
+
+        .history-table tbody tr:first-child td {
+            color: #4ade80 !important;
+            font-weight: 750 !important;
+        }
+
+        .history-table tbody tr:hover td {
+            background: #21143f !important;
         }
 
         .section-label {
@@ -371,7 +444,7 @@ def display_live_timer(start_time):
                 border-radius: 14px;
                 color: #c084fc;
                 display: flex;
-                font: 800 22px system-ui, sans-serif;
+                font: 800 22px "Alphard", "Segoe UI", sans-serif;
                 gap: 9px;
                 justify-content: center;
                 min-height: 52px;
@@ -432,7 +505,7 @@ def display_paused_timer(elapsed_time):
                 border-radius: 14px;
                 color: #c084fc;
                 display: flex;
-                font: 800 22px system-ui, sans-serif;
+                font: 800 22px "Alphard", "Segoe UI", sans-serif;
                 gap: 9px;
                 justify-content: center;
                 min-height: 52px;
@@ -517,6 +590,67 @@ def save_time_record(filename, records, challenge_id, user_id, elapsed_time):
 
     with pd.ExcelWriter(filename, mode="a", if_sheet_exists="replace") as writer:
         updated_records.to_excel(writer, sheet_name="Timerecord", index=False)
+
+
+def get_recorded_times(records, user_id, challenge_id):
+    """Return one user's challenge timings from fastest to slowest."""
+    recorded_times = (
+        records.loc[
+            (records["user_id"] == user_id)
+            & (records["challenge_id"] == challenge_id),
+            "elapsed_time",
+        ]
+        .dropna()
+        .astype(float)
+        .sort_values(kind="stable")
+        .reset_index(drop=True)
+    )
+    return pd.DataFrame(
+        {
+            "Rank": range(1, len(recorded_times) + 1),
+            "Recorded time (seconds)": recorded_times.round(2),
+        }
+    )
+
+
+def display_recorded_times(records, user_id, challenge_id):
+    """Display personal results for the selected challenge."""
+    recorded_times = get_recorded_times(records, user_id, challenge_id)
+    challenge_number = int(challenge_id) + 1
+    with st.container(border=True):
+        st.markdown(
+            f'<div class="history-heading">Your recorded times for Challenge {challenge_number}</div>',
+            unsafe_allow_html=True,
+        )
+        if recorded_times.empty:
+            st.info("No recorded times for this challenge yet.")
+            return
+
+        best_column, attempts_column = st.columns(2)
+        best_column.metric(
+            "Fastest time",
+            f'{recorded_times.iloc[0]["Recorded time (seconds)"]:.2f} s',
+        )
+        attempts_column.metric("Completed attempts", len(recorded_times))
+        st.caption("Timings are ranked from shortest to longest.")
+        table_rows = "".join(
+            f"<tr><td>{int(row['Rank'])}</td>"
+            f"<td>{row['Recorded time (seconds)']:.2f} s</td></tr>"
+            for _, row in recorded_times.iterrows()
+        )
+        st.markdown(
+            f"""
+            <div class="history-table-wrap">
+                <table class="history-table">
+                    <thead>
+                        <tr><th>Rank</th><th>Recorded time</th></tr>
+                    </thead>
+                    <tbody>{table_rows}</tbody>
+                </table>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 
 def initialize_state():
@@ -672,7 +806,7 @@ with st.container(border=True):
     with available_column:
         st.metric("Available challenges", len(available_challenges))
     with completed_column:
-        st.metric("Completed attempts", len(user_time_records))
+        st.metric("Total completed attempts", len(user_time_records))
 
 current_user = users.loc[users["id"] == current_user_id].iloc[0]
 with st.sidebar:
@@ -754,6 +888,11 @@ if st.session_state["improved_active_challenge_id"] is None:
             label_visibility="collapsed",
             key="improved_challenge_filter",
         )
+        display_recorded_times(
+            time_records,
+            current_user_id,
+            selected_challenge_id,
+        )
         start_clicked = st.button(
             "Start challenge",
             use_container_width=True,
@@ -799,6 +938,11 @@ else:
             unsafe_allow_html=True,
         )
         st.caption("ⓘ The timer is running. Solve and submit your answer!")
+        display_recorded_times(
+            time_records,
+            current_user_id,
+            st.session_state["improved_active_challenge_id"],
+        )
 
         with st.form("improved_submit_answer", enter_to_submit=True):
             user_answer = st.text_input(
